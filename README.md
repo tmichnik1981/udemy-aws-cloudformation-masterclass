@@ -367,7 +367,7 @@ Resources:
 
 #### Conditionals
 
-- Conditionals are used to control the creation of resources of outputs based on a condition
+- Conditionals are used to control the creation of resources or outputs based on a condition
 
 - Conditions can be whatever you want them to be, but common ones are:
 
@@ -377,14 +377,109 @@ Resources:
 
 - Each condition can reference another condition, parameter value or mapping
 
-- ​
-
   ```yaml
   Conditions:
-  	# any ID to want 
+  	# any ID you want 
   	Logical ID:
   	# Fn::And, Fn::Equals, Fn::If, Fn::Not, Fn::Or 
   		Intrinsic function
   ```
 
-  ​
+- Example
+
+  ```yaml
+  Parameters:
+    EnvType:
+      Description: Environment type.
+      Default: test
+      Type: String
+      # Depending on which value was selected (aws console), the condition is met or not
+      AllowedValues:
+        - prod
+        - test
+      ConstraintDescription: must specify prod or test.
+
+  Conditions:
+    CreateProdResources: !Equals [ !Ref EnvType, prod ]
+    
+    
+  # -----------------#
+    MountPoint:
+      Type: "AWS::EC2::VolumeAttachment"
+      # if condition is met a mount point is attached 
+      Condition: CreateProdResources
+      Properties:
+        InstanceId:
+          !Ref EC2Instance
+        VolumeId:
+          !Ref NewVolume
+        Device: /dev/sdh
+
+    NewVolume:
+      Type: "AWS::EC2::Volume"
+      Condition: CreateProdResources
+      Properties:
+        Size: 100
+        AvailabilityZone:
+          !GetAtt EC2Instance.AvailabilityZone
+  ```
+
+
+
+##### Fn::GetAtt
+
+- Attributes are attached to any resources you create
+
+```yaml
+Fn::GetAtt: [logicalNameOfResource, attributeName]
+# OR
+!GetAtt logicalNameOfResource.attributeName
+```
+
+#### CloudFormation Metadata
+
+- Optional section to include arbitrary YAML that prvide details about the template or resource 
+
+  ```yaml
+  Metadata:
+  	Instances:
+  		Description: "Information about the instances"
+  	Databases:
+      	Description: "Information about the databases"
+  ```
+
+- 3 metadata keys that have special meaning:
+
+  - `AWS::CloudFormation::Designer` - how resources are laid out
+  - `AWS::CloudFormation::Interface` - grouping and ordering of input parameters
+  - `AWS::CloudFormation::Init` - configuration tasks fork cfn-init
+
+```yaml
+# Grouping parameters
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VPCID
+          - SubnetID
+          - SecurityGroupID
+      - Label:
+          default: "Amazon EC2 Configuration"
+        Parameters:
+          - InstanceType
+          - KeyName
+    # parameter VPCID will have label: "Which VPC should..."       
+    ParameterLabels:
+      VPCID:
+        default: "Which VPC should this be deployed to?"
+```
+
+#### CFN Init and EC2 User Data
+
+##### EC2 User Data
+
+- user-data script executed at the first boot of the instance
+
