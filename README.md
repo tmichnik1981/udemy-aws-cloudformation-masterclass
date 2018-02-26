@@ -11,7 +11,7 @@
 - Templates have to be uploaded in S3 and then referenced in CloudFormation
 - To update a templte we can't edit previous ones. We have to re-upload a new version of the template to AWS
 - Stacks are identified by a name
-- Deleting a stack deletes every single artifact that was created by ClouFormation
+- Deleting a stack deletes every single artifact that was created by CloudFormation
 
 1. Go to aws.amazon.com / services / CloudFormation
 2. Click Create new stack
@@ -438,7 +438,7 @@ Fn::GetAtt: [logicalNameOfResource, attributeName]
 
 #### CloudFormation Metadata
 
-- Optional section to include arbitrary YAML that prvide details about the template or resource 
+- Optional section to include arbitrary YAML that provide details about the template or resource 
 
   ```yaml
   Metadata:
@@ -483,3 +483,218 @@ Metadata:
 
 - user-data script executed at the first boot of the instance
 
+  ```yaml
+  Resources:
+    WebServer:
+      Type: AWS::EC2::Instance
+      Properties:
+        ImageId: ami-a4c7edb2
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        SecurityGroups:
+          - !Ref WebServerSecurityGroup
+        UserData:
+        # | stands for multiline string 
+          Fn::Base64: | 
+             #!/bin/bash
+             yum update -y
+             yum install -y httpd24 php56 mysql55-server php56-mysqlnd
+             service httpd start
+             chkconfig httpd on
+             groupadd www
+             usermod -a -G www ec2-user
+             chown -R root:www /var/www
+             chmod 2775 /var/www
+             find /var/www -type d -exec chmod 2775 {} +
+             find /var/www -type f -exec chmod 0664 {} +
+             echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
+  ```
+
+
+##### Helper scripts
+
+###### 4 Python scripts available Amazon Linux AMI or installed on another linux
+
+- cfn-init: to retrieve and interpret the resource metadata, installing packages, creating files and starting services
+- cfn-signal: A simple wrapper to signal am AWS Cloudformation CreationPolicy or WaitCondition, enabling you to synchronize other resources in the stack with the application being ready
+- cfn-get-metadata: A wrapper script making it easy to retrieve either all metadata defined for a resource or path to a specific key or subtree of the resource metadata.
+- cfn-hup: a Daemon to check for updates to metadata and execute custom hooks when the changes are detected
+
+###### Flow
+
+- cfn-init --> cfn-signal --> cfn-hup
+
+###### AWS::CloudFormation::Init
+
+- You can have  multiple configs in your CloudFormation::Init
+- You create configsets with multiple configs
+- And you invoke config sets from your  ec2-user data 
+- Sections:
+  - **Packages**: install a list of packages on the Linux OS
+  - **Groups**: define user groups
+  - **Users**: define users, and which group they belong to
+  - **Sources**: download an archive file and place it on the ec2 instance(tar, zip, bz2)
+  - **Files**: create files on the ec2 instance, using inline or can be pulled from a URL
+  - **Commands**: run a series of commands
+  - **Services**: launch a list of sysvinit
+
+###### Packages
+
+- Repositories: apt, msi, python, rpm, rubygems, yum
+
+- Order of processing: rpm, yum/apt, rubygems and python
+
+- You can pecify a version. Empty array `[]` - latest
+
+  ```yaml
+  WebServerHost:
+      Type: AWS::EC2::Instance
+      Metadata:
+        Comment: Install a simple PHP application
+        AWS::CloudFormation::Init:
+          config:
+            packages:
+              yum:
+                httpd: []
+                php: []
+  ```
+
+###### Groups and Users
+
+- if you want to have multiple users and groups
+
+  ```yaml
+  groups:
+   	apache: {}
+  users:
+      "apache":
+       groups:
+         - "apache"
+  ```
+
+###### Sources
+
+- download scrips from the web or S3
+
+- or download the whole github project
+
+  ```yaml
+  sources:
+  	"/home/ec2-user/aws-cli": "https://github.com/aws/aws-cli/tarball/master"
+  ```
+
+###### Files
+
+- gives you a full control over any content you want
+
+- come from a specific URL or be written inline
+
+  ```yaml
+  # !Sub - elements like  ie ${AWS::StackId} will be subsituted with a valid value
+  files:
+  	"/tmp/cwlogs/apacheaccess.conf":
+      	content: !Sub |
+                  [general]
+                  state_file= /var/awslogs/agent-state
+                  [/var/log/httpd/access_log]
+                  file = /var/log/httpd/access_log
+                  log_group_name = ${AWS::StackName}
+                  log_stream_name = {instance_id}/apache.log
+                  datetime_format = %d/%b/%Y:%H:%M:%S
+          mode: '000400'
+          owner: apache
+          group: apache
+        "/var/www/html/index.php":
+        	content: !Sub |
+              <?php
+                echo '<h1>AWS CloudFormation sample PHP application for ${AWS::StackName </h1>';
+                  ?>
+           mode: '000644'
+           owner: apache
+           group: apache
+        "/etc/cfn/cfn-hup.conf":
+           content: !Sub |
+                  [main]
+                  stack=${AWS::StackId}
+                  region=${AWS::Region}
+           mode: "000400"
+           owner: "root"
+           group: "root"
+  ```
+
+###### Function Fn::Sub
+
+- Fn::Sub or !Sub - used to substitute variables form a text. 
+- ie. you can combine Fb::Sub with References or AWS Pseudo variables!
+- String must contain ${VariableName} and will substitute them
+
+###### Commands
+
+- commands are run run one at a time in the alphabitical order
+
+- set a directory from which that command is run
+
+- set the environnment variables 
+
+- provide a test to control whether the command is executed or not
+
+  ```yaml
+  commands:
+      test:
+      	command: "echo \"$MAGIC\" > test.txt"
+      	env:
+          	MAGIC: "I come from the environment!"
+          cwd: "~"
+  ```
+
+###### Services
+
+- Launch a bunch of services at instance launch
+
+- Ensure services are restarted when files change, or packages are updated by cfn-init 
+
+  ```yaml
+  services:
+  	sysvinit:
+      	httpd:
+          	enabled: 'true'
+          	ensureRunning: 'true'
+          sendmail:
+          	enabled: 'false'
+              ensureRunning: 'false'
+  ```
+
+###### CFN init and Signal
+
+- we use cfn-init first to launch the configuration
+
+- we use cfn-signal when the configuration has completed which will CF jnow the resource has beeen successful
+
+- this can be used in conjuction of a CreationPolicy
+
+  ```yaml
+  # we are waiting a mx 5 min for the instance to come online and be self configured. After 5 min we will fail and rollback
+  CreationPolicy:
+  	ResourceSignal:
+  		Timeout: PT5M
+  		
+      UserData:
+          "Fn::Base64":
+            !Sub |
+              #!/bin/bash -xe
+              # Get the latest CloudFormation package
+              yum update -y aws-cfn-bootstrap
+              # Start cfn-init
+              /opt/aws/bin/cfn-init -s ${AWS::StackId} -r WebServerHost --region ${AWS::Region} || error_exit 'Failed to run cfn-init'
+    
+    			# Start up the cfn-hup daemon to listen for changes to the EC2 instance metadata
+              /opt/aws/bin/cfn-hup || error_exit 'Failed to start cfn-hup'
+              
+              # All done so signal success
+              /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource WebServerHost --region ${AWS::Region}
+  		
+  ```
+
+- Cfn-hup
+
+  - can be used to tell your EC2 instance to look for Metedata changes every 15 minutes and apply the metadata configuration againit relies on a cfn-hup configuration, see /etc/cfn/cfn-hup.conf and /etc/cfn/hooks.d/cfn-auto-reloader.conf
