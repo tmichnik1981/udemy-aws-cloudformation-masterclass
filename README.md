@@ -698,3 +698,50 @@ Metadata:
 - Cfn-hup
 
   - can be used to tell your EC2 instance to look for Metedata changes every 15 minutes and apply the metadata configuration againit relies on a cfn-hup configuration, see /etc/cfn/cfn-hup.conf and /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+#### Advanced Concepts
+
+- [WordPress Template](https://github.com/awslabs/aws-cloudformation-templates/blob/master/aws/solutions/WordPress_Single_Instance.yaml)
+- [CF Templates](https://github.com/awslabs/aws-cloudformation-templates)
+
+##### AWS CLI
+
+- [installing AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/installing.html)
+
+  ```bash
+  # make sure python is installed on your machine
+  # see http://docs.aws.amazon.com/cli/latest/userguide/installing.html
+  pip install awscli --upgrade --user
+
+  # configure your profile (we'll call it cf-course):
+  aws configure --profile cf-course
+
+  # we create the cloudformation template
+  aws cloudformation create-stack --stack-name example-cli-stack --template-body file://0-sample-template.yaml --parameters file://0-parameters.json --profile cf-course --region us-east-1
+
+  ```
+
+##### Troposphere
+
+- [Troposphere project](https://github.com/cloudtools/troposphere)
+- using python to generate a valid json CF
+
+##### DeletionPolicy
+
+- with **DeletionPolicy** attribute you can prevent resources form being deleted ot, in some cases, back them up before deletion
+- possible values:
+  - Delete: AWS CloudFormation will delete resource and all its content if applicable during stack deletion
+  - Retain: AWS CloudFormation keeps the resource without deleting the resource or its contents when its stack id deleted. You can add this deletion policy to any resource type.
+  - Snapshot: For resources that support snapshots (AWS::EC2::Volume, AWS::ElastiCache::CacheCluster, AWS::ElastiCache::ReplicationGroup and so on) AWS CF creates a snapshot for the resource before deleting it
+
+##### Custom resources
+
+- Custom resources enable you to write custom provisioning logic in templates that AWS CloudFormation runs anytime you create, update or delete stacks
+- For example you might want to include resources that arent available as AWS CloudFormation resource types.
+- Your Custom resources can be provisioned using an AWS Lambda Function.
+- For a complete walkthrough see [custom resources](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/walkthrough-custom-resources-lambda-lookup-amiids.html)
+
+##### Best practices
+
+
+
