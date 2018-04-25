@@ -743,5 +743,13 @@ Metadata:
 
 ##### Best practices
 
-
-
+- Layered architecture / service oriented architecture
+- Use cross stacks references for example to reference a VPC or Subnet
+- Make sure the template is env. agnostic so you can do dev / test / prod and across regions / accounts
+- Do not embed credentials (use parameters with NoEcho for example, or KMS)
+- Use specific parameters types & constraints
+- Use CFN init (& latest version of the helper scripts)
+- Validate templates
+- Don't do anything manual on the elements of the stack - that can cause a state mismatch
+- Verify changes with changesets 
+- Use stack policies to prevent critical components from being deleted after create
